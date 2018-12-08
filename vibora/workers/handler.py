@@ -1,6 +1,5 @@
 import asyncio
 import signal
-from socket import IPPROTO_TCP, TCP_NODELAY, SO_REUSEADDR, SOL_SOCKET, SO_REUSEPORT, socket
 from multiprocessing import Process
 from functools import partial
 from .reaper import Reaper
@@ -10,24 +9,13 @@ from ..utils import asynclib
 
 class RequestHandler(Process):
 
-    def __init__(self, app, bind: str, port: int, sock=None):
+    def __init__(self, app, sock_path=None):
         super().__init__()
         self.app = app
-        self.bind = bind
-        self.port = port
         self.daemon = True
-        self.socket = sock
+        self.socket_path = sock_path
 
     def run(self):
-
-        # Re-using address and ports. Kernel is our load balancer.
-        if not self.socket:
-            self.socket = socket()
-            self.socket.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
-            self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-            self.socket.setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
-            self.socket.bind((self.bind, self.port))
-
         # Creating a new event loop using a faster loop.
         loop = asynclib.new_event_loop()
         loop.app = self.app
@@ -47,7 +35,7 @@ class RequestHandler(Process):
 
         # Creating the server.
         handler = partial(self.app.handler, app=self.app, loop=loop, worker=self)
-        ss = loop.create_server(handler, sock=self.socket, reuse_port=True, backlog=1000)
+        ss = loop.create_unix_server(handler, path=self.socket_path)
 
         # Calling after server hooks (sync/async)
         loop.run_until_complete(ss)

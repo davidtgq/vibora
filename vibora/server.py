@@ -261,24 +261,22 @@ class Vibora(Application):
         self.load_templates()
         self.initialized = True
 
-    def run(self, host: str='127.0.0.1', port: int=5000, workers: int=None, debug: bool=True,
-            block: bool=True, necromancer: bool=False, sock=None, startup_message: bool=True):
+    def run(self, workers: int=None, debug: bool=True, sock_path: str=None,
+            block: bool=True, necromancer: bool=False, startup_message: bool=True):
         """
 
         :param startup_message:
-        :param host:
-        :param port:
         :param workers:
         :param debug:
         :param block:
         :param necromancer:
-        :param sock:
+        :param sock_path:
         :return:
         """
         self.debug_mode = debug
 
         # Starting workers.
-        spawn_function = partial(RequestHandler, self, host, port, sock)
+        spawn_function = partial(RequestHandler, self, sock_path)
         for _ in range(0, (workers or cpu_count() + 2)):
             worker = spawn_function()
             worker.start()
@@ -290,13 +288,8 @@ class Vibora(Application):
                                       interval=self.server_limits.worker_timeout)
             necromancer.start()
 
-        # Wait the server start accepting new connections.
-        if not sock:
-            wait_server_available(host, port)
-
         if startup_message:
-            cprint('# Vibora ({color_}' + __version__ + '{end_}) # http://' + str(host) + ':' + str(port),
-                   custom=True)
+            cprint('# Vibora ({color_}' + __version__ + '{end_})', custom=True)
 
         self.running = True
         if block:
